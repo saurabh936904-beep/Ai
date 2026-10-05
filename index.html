@@ -317,7 +317,7 @@
 
                 <div class="block-box">
                     <label>AI API Key (Gemini) - Optional</label>
-                    <input type="password" id="apiToken" placeholder="AIzaSy... (डालने पर सबसे पहले एआई काम करेगा)">
+                    <input type="password" id="apiToken" placeholder="AIzaSy... (खाली छोड़ने पर मैनुअल लाइब्रेरी चलेगी)">
                 </div>
 
                 <div class="block-box">
@@ -337,7 +337,7 @@
                 
                 <div class="block-box">
                     <label>सवाल और जवाब यहाँ सेट करें (JSON):</label>
-                    <textarea id="libraryCodeInput" rows="6" placeholder='{"hello": "नमस्ते!", "kaise ho": "मैं ठीक हूँ!"}'></textarea>
+                    <textarea id="libraryCodeInput" rows="6" placeholder='{}'></textarea>
                 </div>
 
                 <button class="action-btn" onclick="saveLibraryCode()">लाइब्रेरी सेव करें</button>
@@ -424,36 +424,17 @@
         let lastUpdateId = 0;
         let userCoins = 10;
         let aiReplyCount = 0;
-        let activeLibraryType = ''; // शुरुआत में कोई लाइब्रेरी नहीं
+        let activeLibraryType = 'hindi';
         let isAutoReplyEnabled = true;
         
         let msgClaimed = false;
         let batchClaimed = false;
 
-        // हिंदी लाइब्रेरी डेटा
-        const hindiKnowledge = {
-            "hello": "नमस्ते! मैं Detective Cyber AI हूँ, आपकी किस प्रकार सहायता कर सकता हूँ?",
-            "hi": "नमस्ते जी! मैं Detective Cyber AI हूँ, बताइए क्या हाल है?",
-            "kaise ho": "मैं Detective Cyber AI हूँ और एकदम मस्त हूँ!",
-            "naam kya hai": "मेरा नाम Detective Cyber AI है।",
-            "owner kaun hai": "इस बॉट के ओनर Detective Cyber हैं!",
-            "default": "माफ़ कीजिए, मुझे इसका मैनुअल जवाब नहीं मिला।"
-        };
-
-        // इंग्लिश लाइब्रेरी डेटा
-        const englishKnowledge = {
-            "hello": "Hello! I am Detective Cyber AI. How can I assist you today?",
-            "hi": "Hi there! I am Detective Cyber AI. How can I help?",
-            "how are you": "I am Detective Cyber AI and I am doing great!",
-            "what is your name": "My name is Detective Cyber AI.",
-            "who is your owner": "The owner of this bot is Detective Cyber!",
-            "default": "Sorry, I couldn't find a manual response for this query."
-        };
-
-        // मल्टी-लैंग्वेज स्मार्ट लाइब्रेरी डेटा
+        // डिफ़ॉल्ट लाइब्रेरी को खाली रखा गया है ताकि API प्रमुखता से काम करे
+        const hindiKnowledge = {};
+        const englishKnowledge = {};
         const multilingualKnowledge = {
-            "mode": "auto_detect_language",
-            "default": "I will reply in the exact same language you ask in! / जिस भाषा में आप पूछेंगे, मैं उसी भाषा में जवाब दूँगा!"
+            "mode": "auto_detect_language"
         };
 
         window.onload = function() {
@@ -462,22 +443,21 @@
             document.getElementById('chatToken').value = localStorage.getItem('h_chatid') || '';
             
             const savedCoins = localStorage.getItem('h_coins');
-            if (savedCoins === null) {
+            if (savedCoins === null || savedCoins === '0') {
                 userCoins = 10;
                 localStorage.setItem('h_coins', '10');
             } else {
                 userCoins = parseInt(savedCoins) || 10;
             }
 
-            activeLibraryType = localStorage.getItem('h_lib_type') || '';
+            activeLibraryType = localStorage.getItem('h_lib_type') || 'hindi';
 
             updateCoinUI();
             updateMissionUI();
 
             let savedLib = localStorage.getItem('h_libdata');
-            // अगर पहले से कोई लाइब्रेरी नहीं है तो इसे खाली रखें
             if (!savedLib) {
-                savedLib = JSON.stringify({}, null, 2);
+                savedLib = "{}";
                 localStorage.setItem('h_libdata', savedLib);
             }
             document.getElementById('libraryCodeInput').value = savedLib;
@@ -567,9 +547,9 @@
             activeLibraryType = type;
             localStorage.setItem('h_lib_type', type);
 
-            let selectedData = hindiKnowledge;
-            if (type === 'english') selectedData = englishKnowledge;
-            else if (type === 'multilingual') selectedData = multilingualKnowledge;
+            let selectedData = {};
+            if (type === 'english') selectedData = {};
+            else if (type === 'multilingual') selectedData = { "mode": "auto_detect_language" };
 
             const dataString = JSON.stringify(selectedData, null, 2);
             document.getElementById('libraryCodeInput').value = dataString;
@@ -606,7 +586,7 @@
             const chatid = document.getElementById('chatToken').value.trim();
 
             if (!token || !chatid) {
-                alert("कृपया Telegram Bot Token और Chat ID दोनों दर्ज करें!");
+                alert("कृपया Telegram Bot Token और Chat ID (Target User) दोनों दर्ज करें!");
                 return;
             }
 
@@ -614,13 +594,7 @@
             localStorage.setItem('h_apikey', apikey);
             localStorage.setItem('h_chatid', chatid);
 
-            let modeText = "मोड: 🤖 Google Gemini AI";
-            if (apikey) {
-                modeText = "मोड: 🤖 Google Gemini AI (सक्रिय)";
-            } else if (activeLibraryType) {
-                modeText = "मोड: 📚 खरीदी गई लाइब्रेरी";
-            }
-
+            let modeText = "मोड: 🇮🇳 हाइब्रिड (API Priority)";
             document.getElementById('activeLibIndicator').textContent = modeText;
 
             switchView('chatView');
@@ -667,18 +641,10 @@
             const apikey = localStorage.getItem('h_apikey');
             let reply = "";
 
-            // 1. सबसे पहले Google Gemini API से जवाब की कोशिश करें (अगर एपीआई की मौजूद है)
+            // पहले API Key को प्राथमिकता दी जाएगी
             if (apikey) {
                 try {
-                    let promptText = userText;
-                    if (activeLibraryType === 'multilingual') {
-                        promptText = `User asked: "${userText}". Detect the language of the user's message and reply back in that exact same language naturally and politely.`;
-                    } else if (activeLibraryType === 'english') {
-                        promptText = `User asked: "${userText}". Please reply strictly in English language only.`;
-                    } else {
-                        promptText = `User asked: "${userText}". Please reply strictly in Hindi language only.`;
-                    }
-
+                    let promptText = `User asked: "${userText}". Please reply naturally and accurately.`;
                     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apikey}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -691,7 +657,7 @@
                 } catch (e) { console.error(e); }
             }
 
-            // 2. अगर एपीआई की नहीं है या उससे जवाब नहीं मिला, तब खरीदी गई लाइब्रेरी चेक हो
+            // अगर API Key नहीं है या रिस्पॉन्स नहीं मिला, तब लाइब्रेरी चेक होगी
             if (!reply) {
                 try {
                     const libData = JSON.parse(localStorage.getItem('h_libdata') || "{}");
@@ -704,17 +670,16 @@
                             break;
                         }
                     }
-                    if (!found && libData["default"]) {
-                        reply = libData["default"];
+                    if (!found && Object.keys(libData).length > 0) {
+                        reply = libData["default"] || "";
                     }
                 } catch (e) {
-                    console.error(e);
+                    console.error("Library parse error");
                 }
             }
 
-            // 3. अगर दोनों में से कुछ न मिले
             if (!reply) {
-                reply = "माफ़ कीजिए, ना तो एआई एपीआई की सेट है और ना ही कोई लाइब्रेरी खरीदी गई है।";
+                reply = "माफ़ कीजिए, अभी इसका कोई जवाब उपलब्ध नहीं है।";
             }
 
             appendMsg("बॉट (ऑटो): " + reply, 'ai');
