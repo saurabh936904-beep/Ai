@@ -317,7 +317,7 @@
 
                 <div class="block-box">
                     <label>AI API Key (Gemini) - Optional</label>
-                    <input type="password" id="apiToken" placeholder="AIzaSy... (खाली छोड़ने पर मैनुअल लाइब्रेरी चलेगी)">
+                    <input type="password" id="apiToken" placeholder="AIzaSy... (डालने पर सबसे पहले एआई काम करेगा)">
                 </div>
 
                 <div class="block-box">
@@ -424,13 +424,13 @@
         let lastUpdateId = 0;
         let userCoins = 10;
         let aiReplyCount = 0;
-        let activeLibraryType = 'hindi';
-        let isAutoReplyEnabled = true; // डिफ़ॉल्ट ऑटो-रिप्लाई चालू है
+        let activeLibraryType = ''; // शुरुआत में कोई लाइब्रेरी नहीं
+        let isAutoReplyEnabled = true;
         
         let msgClaimed = false;
         let batchClaimed = false;
 
-        // हिंदी लाइब्रेरी
+        // हिंदी लाइब्रेरी डेटा
         const hindiKnowledge = {
             "hello": "नमस्ते! मैं Detective Cyber AI हूँ, आपकी किस प्रकार सहायता कर सकता हूँ?",
             "hi": "नमस्ते जी! मैं Detective Cyber AI हूँ, बताइए क्या हाल है?",
@@ -440,7 +440,7 @@
             "default": "माफ़ कीजिए, मुझे इसका मैनुअल जवाब नहीं मिला।"
         };
 
-        // इंग्लिश लाइब्रेरी
+        // इंग्लिश लाइब्रेरी डेटा
         const englishKnowledge = {
             "hello": "Hello! I am Detective Cyber AI. How can I assist you today?",
             "hi": "Hi there! I am Detective Cyber AI. How can I help?",
@@ -450,7 +450,7 @@
             "default": "Sorry, I couldn't find a manual response for this query."
         };
 
-        // मल्टी-लैंग्वेज स्मार्ट लाइब्रेरी
+        // मल्टी-लैंग्वेज स्मार्ट लाइब्रेरी डेटा
         const multilingualKnowledge = {
             "mode": "auto_detect_language",
             "default": "I will reply in the exact same language you ask in! / जिस भाषा में आप पूछेंगे, मैं उसी भाषा में जवाब दूँगा!"
@@ -462,21 +462,22 @@
             document.getElementById('chatToken').value = localStorage.getItem('h_chatid') || '';
             
             const savedCoins = localStorage.getItem('h_coins');
-            if (savedCoins === null || savedCoins === '0') {
+            if (savedCoins === null) {
                 userCoins = 10;
                 localStorage.setItem('h_coins', '10');
             } else {
                 userCoins = parseInt(savedCoins) || 10;
             }
 
-            activeLibraryType = localStorage.getItem('h_lib_type') || 'hindi';
+            activeLibraryType = localStorage.getItem('h_lib_type') || '';
 
             updateCoinUI();
             updateMissionUI();
 
             let savedLib = localStorage.getItem('h_libdata');
+            // अगर पहले से कोई लाइब्रेरी नहीं है तो इसे खाली रखें
             if (!savedLib) {
-                savedLib = JSON.stringify(hindiKnowledge, null, 2);
+                savedLib = JSON.stringify({}, null, 2);
                 localStorage.setItem('h_libdata', savedLib);
             }
             document.getElementById('libraryCodeInput').value = savedLib;
@@ -550,7 +551,7 @@
             } else {
                 btn.textContent = "AUTO-REPLY: OFF";
                 btn.className = "auto-reply-toggle";
-                appendMsg("System: ऑटोमैटिक जवाब बंद कर दिया गया है। अब आप मैनुअल मैसेज भेज सकते हैं।", 'system');
+                appendMsg("System: ऑटोमैटिक जवाब बंद कर दिया गया है।", 'system');
             }
         }
 
@@ -605,7 +606,7 @@
             const chatid = document.getElementById('chatToken').value.trim();
 
             if (!token || !chatid) {
-                alert("कृपया Telegram Bot Token और Chat ID (Target User) दोनों दर्ज करें!");
+                alert("कृपया Telegram Bot Token और Chat ID दोनों दर्ज करें!");
                 return;
             }
 
@@ -613,9 +614,12 @@
             localStorage.setItem('h_apikey', apikey);
             localStorage.setItem('h_chatid', chatid);
 
-            let modeText = "मोड: 🇮🇳 हिंदी लाइब्रेरी";
-            if (activeLibraryType === 'english') modeText = "मोड: 🇺🇸 इंग्लिश लाइब्रेरी";
-            else if (activeLibraryType === 'multilingual') modeText = "मोड: 🌐 मल्टी-लैंग्वेज स्मार्ट लाइब्रेरी";
+            let modeText = "मोड: 🤖 Google Gemini AI";
+            if (apikey) {
+                modeText = "मोड: 🤖 Google Gemini AI (सक्रिय)";
+            } else if (activeLibraryType) {
+                modeText = "मोड: 📚 खरीदी गई लाइब्रेरी";
+            }
 
             document.getElementById('activeLibIndicator').textContent = modeText;
 
@@ -663,6 +667,7 @@
             const apikey = localStorage.getItem('h_apikey');
             let reply = "";
 
+            // 1. सबसे पहले Google Gemini API से जवाब की कोशिश करें (अगर एपीआई की मौजूद है)
             if (apikey) {
                 try {
                     let promptText = userText;
@@ -686,6 +691,7 @@
                 } catch (e) { console.error(e); }
             }
 
+            // 2. अगर एपीआई की नहीं है या उससे जवाब नहीं मिला, तब खरीदी गई लाइब्रेरी चेक हो
             if (!reply) {
                 try {
                     const libData = JSON.parse(localStorage.getItem('h_libdata') || "{}");
@@ -698,12 +704,17 @@
                             break;
                         }
                     }
-                    if (!found) {
-                        reply = libData["default"] || "माफ़ कीजिए, इसका मैनुअल जवाब उपलब्ध नहीं है।";
+                    if (!found && libData["default"]) {
+                        reply = libData["default"];
                     }
                 } catch (e) {
-                    reply = "लाइब्रेरी डेटा पढ़ने में त्रुटि।";
+                    console.error(e);
                 }
+            }
+
+            // 3. अगर दोनों में से कुछ न मिले
+            if (!reply) {
+                reply = "माफ़ कीजिए, ना तो एआई एपीआई की सेट है और ना ही कोई लाइब्रेरी खरीदी गई है।";
             }
 
             appendMsg("बॉट (ऑटो): " + reply, 'ai');
